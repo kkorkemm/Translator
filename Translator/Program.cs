@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Translator
 {
@@ -11,27 +13,40 @@ namespace Translator
         static void Main(string[] args)
         {
             // Тестовый код для анализа int x=3;@ arrayInt arr[10];@ if(x>2.5){write(x);}else{read(x);}@ while(x<10) {x=x+1;}
-            string testCode = @" int x = 1; float a = 1.34;";
+           //tring testCode = @"if(x $ 2) else {x}; write(x); ";
 
-            Console.WriteLine("Исходный код:");
-            Console.WriteLine(testCode);
+            //Console.WriteLine("Исходный код:");
+            //Console.WriteLine(testCode);
             Console.WriteLine("\nРезультат лексического анализа:");
 
-            try
+            Console.WriteLine($"Позиция \t|Состояние \t|Программа\t|Тип лексемы \t|");
+            string text = "";
+            using (StreamReader fs = new StreamReader(@"kal.txt"))
             {
-                LexemeAnalyzer lexer = new LexemeAnalyzer(testCode);
-                lexer.Run();
-
-                Console.WriteLine($"Позиция \t|Состояние \t|Программа\t|Тип лексемы \t|");
-                foreach (var lexeme in lexer.GetData())
+                while (text != null)
                 {
-                    Console.WriteLine($"{lexeme.Position}\t\t {lexeme.State}\t\t {lexeme.Program}\t\t {lexeme.lexeme_type}");
+                    string temp = fs.ReadLine();
+                    if (temp == null) break;
+                    text = temp;
+
+                    try
+                    {
+                        LexemeAnalyzer lexer = new LexemeAnalyzer(text);
+                        lexer.Run();
+
+                        foreach (var lexeme in lexer.GetData())
+                        {
+                            Console.WriteLine($"{lexeme.Position}\t\t {lexeme.State}\t\t {lexeme.Program}\t\t {lexeme.lexeme_type}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Ошибка: {ex.Message}");
+                    }
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка: {ex.Message}");
-            }
+
+           
 
             Console.ReadKey();
         

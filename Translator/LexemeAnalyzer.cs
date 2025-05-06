@@ -178,10 +178,15 @@ namespace Translator
             while (currentIndex < programText.Length)
             {
                 // Пропускаем пробелы и табы
-                while (currentIndex < programText.Length && (programText[currentIndex] == ' ' || programText[currentIndex] == '\t'))
+                while (currentIndex < programText.Length && (programText[currentIndex] == ' ' || programText[currentIndex] == '\t' || programText[currentIndex] == '\n'))
                 {
                     if (programText[currentIndex] == ' ')
                         currentPos++;
+                    else if (programText[currentIndex] == '\n')
+                    {
+                        currentLine++; 
+                        currentPos = 1;
+                    }
                     else
                         currentPos += 4;
                     currentIndex++;
@@ -259,7 +264,7 @@ namespace Translator
                 // Выполняем действие
                 if (transition.Action != -1)
                 {
-                    ExecuteAction(transition.Action, result, currentChar);
+                    ExecuteAction(transition.Action, result, value.ToString(), currentChar);
                 }
 
                 if (currentState != State.F && currentState != State.O)
@@ -373,7 +378,7 @@ namespace Translator
             }
         }
 
-        private void ExecuteAction(int action, Lexeme lexeme, char currentChar)
+        private void ExecuteAction(int action, Lexeme lexeme, string value, char currentChar)
         {
             // Семантические программы
             switch (action)
@@ -446,7 +451,7 @@ namespace Translator
                     break;
 
                 case 14: // Поиск идентификатора в служ
-                    lexeme.lexeme_type = GetKeywordType(lexeme.Value);
+                    lexeme.lexeme_type = GetKeywordType(value);
                     currentIndex--;
                     break;
 
