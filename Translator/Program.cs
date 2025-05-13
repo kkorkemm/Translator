@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Translator;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Translator
@@ -12,16 +13,13 @@ namespace Translator
     {
         static void Main(string[] args)
         {
-            // Тестовый код для анализа int x=3;@ arrayInt arr[10];@ if(x>2.5){write(x);}else{read(x);}@ while(x<10) {x=x+1;}
-           //tring testCode = @"if(x $ 2) else {x}; write(x); ";
-
-            //Console.WriteLine("Исходный код:");
-            //Console.WriteLine(testCode);
             Console.WriteLine("\nРезультат лексического анализа:");
 
             Console.WriteLine($"Позиция \t|Состояние \t|Программа\t|Тип лексемы \t|");
             string text = "";
-            using (StreamReader fs = new StreamReader(@"kal.txt"))
+
+            LexemeAnalyzer lexer = new LexemeAnalyzer(text);
+            using (StreamReader fs = new StreamReader(@"testA.txt"))
             {
                 while (text != null)
                 {
@@ -31,25 +29,44 @@ namespace Translator
 
                     try
                     {
-                        LexemeAnalyzer lexer = new LexemeAnalyzer(text);
+                        lexer = new LexemeAnalyzer(text);
                         lexer.Run();
 
                         foreach (var lexeme in lexer.GetData())
                         {
+                            lexeme.Line = LexemeAnalyzer.currentLine;
                             Console.WriteLine($"{lexeme.Position}\t\t {lexeme.State}\t\t {lexeme.Program}\t\t {lexeme.lexeme_type}");
+                        }
+
+                        OpsGenerator opsGenerator = new OpsGenerator(lexer.GetData());
+                        opsGenerator.Run();
+
+                        foreach (var op in opsGenerator.get_data().ops)
+                        {
+                            Console.WriteLine(op.type);
+
+                            if (op.type == OpsItemType.Operation)
+                                Console.WriteLine(op.operation);
+
+                            if (op.type == OpsItemType.VariableName || op.type == OpsItemType.Metka)
+                                Console.WriteLine(op.var_name);
+                            else if (op.type == OpsItemType.IntNumber)
+                                Console.WriteLine(op.int_num);
+                            else if (op.type == OpsItemType.FloatNumber)
+                                Console.WriteLine(op.float_num);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Ошибка: {ex.Message}");
+                        Console.WriteLine($"{ex.Message}");
                     }
+                    LexemeAnalyzer.currentLine++;
                 }
             }
 
-           
+            
 
-            Console.ReadKey();
-        
+            Console.ReadKey();        
         }
     }
 }

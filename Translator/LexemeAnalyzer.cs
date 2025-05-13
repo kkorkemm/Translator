@@ -169,11 +169,11 @@ namespace Translator
             currentState = State.S;
         }
 
+        public static int currentLine = 1;
+        private int currentPos = 1;
         public void Run()
         {
             Lexeme currentLexeme = new Lexeme();
-            int currentLine = 1;
-            int currentPos = 1;
 
             while (currentIndex < programText.Length)
             {
@@ -201,7 +201,7 @@ namespace Translator
 
                 if (currentLexeme.lexeme_type == LexemeType.Error)
                 {
-                    string msg = $"Ошибка анализатора: строка = {currentLine}, позиция = {currentPos - 1}";
+                    string msg = $"Ошибка анализатора: строка = {currentLine}, позиция = {currentPos}";
                     throw new Exception(msg);
                 }
 
@@ -218,6 +218,8 @@ namespace Translator
                 data.Add(currentLexeme);
                 currentIndex++;
                 currentPos++;
+
+                //currentLexeme.Position = currentIndex - 1;
             }
 
             // Добавляем маркер конца
@@ -453,10 +455,12 @@ namespace Translator
                 case 14: // Поиск идентификатора в служ
                     lexeme.lexeme_type = GetKeywordType(value);
                     currentIndex--;
+                    currentPos--;
                     break;
 
                 case 15: // Распознано число
                     currentIndex--;
+                    currentPos--;
                     break;
 
                 case 16: // Распознан символ, не относящийся к языку
