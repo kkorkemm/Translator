@@ -330,6 +330,7 @@ namespace Translator
                     {
                         case LexemeType.Int:
                         {
+                            Magazine.Push(new MagazineItem(State.S));
                             Magazine.Push(new MagazineItem(State.Q));
                             Magazine.Push(new MagazineItem(LexemeType.Semicolon));
                             Magazine.Push(new MagazineItem(State.E));
@@ -338,6 +339,7 @@ namespace Translator
                             Magazine.Push(new MagazineItem(LexemeType.Id));
                             Magazine.Push(new MagazineItem(LexemeType.Int));
 
+                            Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Assign);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
@@ -348,6 +350,7 @@ namespace Translator
                         }
                         case LexemeType.Float:
                         {
+                            Magazine.Push(new MagazineItem(State.S));
                             Magazine.Push(new MagazineItem(State.Q));
                             Magazine.Push(new MagazineItem(LexemeType.Semicolon));
                             Magazine.Push(new MagazineItem(State.E));
@@ -356,6 +359,7 @@ namespace Translator
                             Magazine.Push(new MagazineItem(LexemeType.Id));
                             Magazine.Push(new MagazineItem(LexemeType.Float));
 
+                            Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Assign);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
@@ -367,17 +371,16 @@ namespace Translator
                         }
                         case LexemeType.ArrayInt:
                         {
+                            Magazine.Push(new MagazineItem(State.S));
                             Magazine.Push(new MagazineItem(State.Q));
                             Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                            //Magazine.Push(new MagazineItem(State.E));
-                            //Magazine.Push(new MagazineItem(LexemeType.Assign));
-                            //Magazine.Push(new MagazineItem(State.I));
                             Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
                             Magazine.Push(new MagazineItem(LexemeType.IntNumber));
                             Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
                             Magazine.Push(new MagazineItem(LexemeType.Id));
                             Magazine.Push(new MagazineItem(LexemeType.ArrayInt));
 
+                            Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Index);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
@@ -389,17 +392,16 @@ namespace Translator
                         }
                         case LexemeType.ArrayFloat:
                         {
+                            Magazine.Push(new MagazineItem(State.S));
                             Magazine.Push(new MagazineItem(State.Q));
                             Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                            //Magazine.Push(new MagazineItem(State.E));
-                            //Magazine.Push(new MagazineItem(LexemeType.Assign));
-                            //Magazine.Push(new MagazineItem(State.I));
                             Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
                             Magazine.Push(new MagazineItem(LexemeType.IntNumber));
                             Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
                             Magazine.Push(new MagazineItem(LexemeType.Id));
                             Magazine.Push(new MagazineItem(LexemeType.ArrayFloat));
 
+                            Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Index);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
@@ -634,40 +636,6 @@ namespace Translator
                 {
                     switch (current_lexeme.lexeme_type)
                     {
-                        case LexemeType.Int:
-                        {
-                            Magazine.Push(new MagazineItem(State.Q));
-                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                            Magazine.Push(new MagazineItem(State.E));
-                            Magazine.Push(new MagazineItem(LexemeType.Assign));
-                            Magazine.Push(new MagazineItem(LexemeType.Id));
-                            Magazine.Push(new MagazineItem(LexemeType.Int));
-
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.Assign);
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.VariableId);
-                            Generator.Push(GeneratorTask.Empty);
-                            break;
-                        }
-                        case LexemeType.Float:
-                        {
-                            Magazine.Push(new MagazineItem(State.Q));
-                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                            Magazine.Push(new MagazineItem(State.E));
-                            Magazine.Push(new MagazineItem(LexemeType.Assign));
-                            Magazine.Push(new MagazineItem(LexemeType.Id));
-                            Magazine.Push(new MagazineItem(LexemeType.Float));
-
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.Assign);
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.Empty);
-                            Generator.Push(GeneratorTask.VariableId);
-                            Generator.Push(GeneratorTask.Empty);
-                            break;
-                        }
                         case LexemeType.Id:
                         {
                             Magazine.Push(new MagazineItem(State.Q));
@@ -695,7 +663,7 @@ namespace Translator
                             Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
                             Magazine.Push(new MagazineItem(LexemeType.Read));
 
-                            Generator.Push(GeneratorTask.Empty);
+                            //Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Read);
                             Generator.Push(GeneratorTask.Empty);
@@ -713,7 +681,7 @@ namespace Translator
                             Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
                             Magazine.Push(new MagazineItem(LexemeType.Write));
 
-                            Generator.Push(GeneratorTask.Empty);
+                            //Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Empty);
                             Generator.Push(GeneratorTask.Write);
                             Generator.Push(GeneratorTask.Empty);
