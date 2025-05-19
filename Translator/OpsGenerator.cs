@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Translator
 {
@@ -15,7 +16,9 @@ namespace Translator
         IntNumber,
         FloatNumber,
         Operation,
-        Metka,
+        MarkerName,
+        ArrayInt,
+        ArrayFloat,
         Error
     }
 
@@ -55,6 +58,7 @@ namespace Translator
         public double float_num = 0;
         public int line;
         public int pos;
+        public MarkerName metka;
 
         public OpsItem(string name, Lexeme l)
         {
@@ -89,6 +93,20 @@ namespace Translator
             pos = l.Position;
         }
 
+        public OpsItem(int number, string name, bool isArray)
+        {
+            type = OpsItemType.ArrayInt;
+            int_num = number;
+            var_name = name;
+        }
+
+        public OpsItem(double number, string name, bool isArray)
+        {
+            type = OpsItemType.ArrayFloat;
+            float_num = number;
+            var_name = name;
+        }
+
         public OpsItem(int number, int l, int p)
         {
             type = OpsItemType.IntNumber;
@@ -105,10 +123,31 @@ namespace Translator
             pos = p;
         }
 
-        public OpsItem(string metkaname)
+        public OpsItem(MarkerName metka, int l)
         {
-            var_name = metkaname;
-            type = OpsItemType.Metka;
+            this.metka = metka;
+            type = OpsItemType.MarkerName;
+            line = l;
+            var_name = metka.name;
+        }
+
+        public OpsItem(MarkerName metka, int l, int p)
+        {
+            this.metka = metka;
+            type = OpsItemType.MarkerName;
+            line = l;
+            var_name = metka.name;
+            pos = p;
+        }
+    }
+
+    public class MarkerName
+    {
+        public string name;
+
+        public MarkerName(string metkaname)
+        {
+            name = metkaname;
         }
     }
 
@@ -118,10 +157,6 @@ namespace Translator
     public struct InterpretData
     {
         public List<OpsItem> ops;
-        public Dictionary<string, int> int_table;
-        public Dictionary<string, double> float_table;
-        public Dictionary<string, int[]> arrayInt_table;
-        public Dictionary<string, double[]> arrayFloat_table;
     }
 
     public class OpsGenerator
@@ -131,9 +166,12 @@ namespace Translator
         /// </summary>
         private enum State
         {
-            S, //  int_I_S | float_I_S | arrayIntPS | arrayFloatPS | aH = E; Q | read(aH); Q | write(E); Q | if (C) { AQ }KZQ | while (C) { AQ }Q
-            Q, //  aH = E; Q | read(aH); Q | write(E); Q | if (C) { AQ }KZQ | while (C) { AQ }Q | λ
-            A, //  aH = E; | read(aH); | write(E); | if (C) { AQ }KZ | while (C) { AQ }
+            // поменять S -> int_I_S | float_I_S | arrayIntPS | arrayFloatPS 
+
+            S, //  | aH = E;Q | read(aH);Q | write(E);Q | if (C) {AQ}KZQ | while (C) {AQ}Q
+            R,
+            Q, //  aH = E;Q | read(aH);Q | write(E);Q | if (C) {AQ}KZQ | while (C) {AQ}Q | λ
+            A, //  aH = E; | read(aH); | write(E); | if (C) {AQ}KZ | while (C) {AQ}
             I, //  aM
             M, //  ,aM | ;
             P, //  a[i]N
@@ -157,6 +195,8 @@ namespace Translator
             VariableId,
             IntNumber,
             FloatNumber,
+            ArrayInt,
+            ArrayFloat,
             Read,
             Write,
             Plus,
@@ -175,9 +215,7 @@ namespace Translator
             Task2,
             Task3,
             Task4,
-            Task5,
-            Int,
-            Float
+            Task5
         }
 
         private struct MagazineItem
@@ -207,7 +245,8 @@ namespace Translator
         private string last_array_name;
         private Stack<MagazineItem> Magazine = new Stack<MagazineItem>();
         private Stack<GeneratorTask> Generator = new Stack<GeneratorTask>();
-        private Stack<int> Marks = new Stack<int>();
+        private Stack<MarkerName> Marks = new Stack<MarkerName>();
+
 
         private List<Lexeme> input_data;
         /// <summary>
@@ -286,916 +325,960 @@ namespace Translator
             switch (current_state)
             {
                 case State.S:
+                {
+                    switch (current_lexeme.lexeme_type)
                     {
-                        switch (current_lexeme.lexeme_type)
+                        case LexemeType.Int:
                         {
-                            case LexemeType.Int:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Assign));
-                                    Magazine.Push(new MagazineItem(State.I));
-                                    Magazine.Push(new MagazineItem(LexemeType.Int));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            //Magazine.Push(new MagazineItem(State.I));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.Int));
 
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Assign);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.Float:
-                                {
-                                    Magazine.Push(new MagazineItem(State.S));
-                                    Magazine.Push(new MagazineItem(State.I));
-                                    Magazine.Push(new MagazineItem(LexemeType.Float));
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Float:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            //Magazine.Push(new MagazineItem(State.I));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.Float));
 
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.ArrayInt:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            Magazine.Push(new MagazineItem(State.I));
+                            Magazine.Push(new MagazineItem(LexemeType.ArrayInt));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.ArrayInt);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.ArrayFloat:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            Magazine.Push(new MagazineItem(State.I));
+                            Magazine.Push(new MagazineItem(LexemeType.ArrayFloat));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.ArrayFloat);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.Read:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Read));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Read);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Write:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Write));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Write);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.If:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.K));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.If));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task3);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.While:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.While));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task5);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task4);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.I:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.M));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.M:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Dot:
+                        {
+                            Magazine.Push(new MagazineItem(State.M));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.Dot));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Semicolon:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.P:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.N));
+                            Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Index);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.N:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Dot:
+                        {
+                            Magazine.Push(new MagazineItem(State.N));
+                            Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.Dot));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Semicolon:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.Q:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            //Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            //Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Read:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Read));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Read);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Write:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Write));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Write);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.If:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.K));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.If));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task3);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.While:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.While));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task5);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task4);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.A:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Assign));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Assign);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.Read:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Read));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Read);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Write:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.Semicolon));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.Write));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Write);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.If:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.K));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.If));
+
+                            Generator.Push(GeneratorTask.Task3);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.While:
+                        {
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.C));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+                            Magazine.Push(new MagazineItem(LexemeType.While));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task5);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task1);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task4);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.H:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.LeftSquareBracket:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
+
+                            Generator.Push(GeneratorTask.Index);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.C:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.LeftRoundBracket:
+                        {
+                            Magazine.Push(new MagazineItem(State.L));
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.L));
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.IntNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.L));
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.IntNumber);
+                            break;
+                        }
+                        case LexemeType.FloatNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.L));
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.FloatNumber);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.L:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Less:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Less));
+
+                            Generator.Push(GeneratorTask.Less);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.More:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.More));
+
+                            Generator.Push(GeneratorTask.More);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Equal:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.Equal));
+
+                            Generator.Push(GeneratorTask.Equal);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.LessOrEqual:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LessOrEqual));
+
+                            Generator.Push(GeneratorTask.LessOrEqual);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.MoreOrEqual:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.MoreOrEqual));
+
+                            Generator.Push(GeneratorTask.MoreOrEqual);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.NotEqual:
+                        {
+                            Magazine.Push(new MagazineItem(State.Z));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.NotEqual));
+
+                            Generator.Push(GeneratorTask.NotEqual);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.K:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Else:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.RightBrace));
+                            Magazine.Push(new MagazineItem(State.Q));
+                            Magazine.Push(new MagazineItem(State.A));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
+                            Magazine.Push(new MagazineItem(LexemeType.Else));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Task2);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.E:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.LeftRoundBracket:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.IntNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.IntNumber);
+                            break;
+                        }
+                        case LexemeType.FloatNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.FloatNumber);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.U:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Plus:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.T));
+                            Magazine.Push(new MagazineItem(LexemeType.Plus));
+
+                            Generator.Push(GeneratorTask.Plus);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Minus:
+                        {
+                            Magazine.Push(new MagazineItem(State.U));
+                            Magazine.Push(new MagazineItem(State.T));
+                            Magazine.Push(new MagazineItem(LexemeType.Minus));
+
+                            Generator.Push(GeneratorTask.Minus);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.T:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.LeftRoundBracket:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.IntNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.IntNumber);
+                            break;
+                        }
+                        case LexemeType.FloatNumber:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.FloatNumber);
+                            break;
+                        }
+                        default:
+                        {
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
+                        }
+                    }
+                    break;
+                }
+                case State.V:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.Multiply:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(State.F));
+                            Magazine.Push(new MagazineItem(LexemeType.Multiply));
+
+                            Generator.Push(GeneratorTask.Multiply);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Divide:
+                        {
+                            Magazine.Push(new MagazineItem(State.V));
+                            Magazine.Push(new MagazineItem(State.F));
+                            Magazine.Push(new MagazineItem(LexemeType.Divide));
+
+                            Generator.Push(GeneratorTask.Divide);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case State.F:
+                {
+                    switch (current_lexeme.lexeme_type)
+                    {
+                        case LexemeType.LeftRoundBracket:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
+                            Magazine.Push(new MagazineItem(State.E));
+                            Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.Empty);
+                            break;
+                        }
+                        case LexemeType.Id:
+                        {
+                            Magazine.Push(new MagazineItem(State.H));
+                            Magazine.Push(new MagazineItem(LexemeType.Id));
+
+                            Generator.Push(GeneratorTask.Empty);
+                            Generator.Push(GeneratorTask.VariableId);
+                            break;
+                        }
+                        case LexemeType.IntNumber:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.IntNumber));
+
+                            Generator.Push(GeneratorTask.IntNumber);
+                            break;
+                        }
+                        case LexemeType.FloatNumber:
+                        {
+                            Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
+
+                            Generator.Push(GeneratorTask.FloatNumber);
+                            break;
+                        }
                             case LexemeType.ArrayInt:
                                 {
-                                    Magazine.Push(new MagazineItem(State.S));
-                                    Magazine.Push(new MagazineItem(State.P));
                                     Magazine.Push(new MagazineItem(LexemeType.ArrayInt));
 
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
+                                    Generator.Push(GeneratorTask.ArrayInt);
                                     break;
                                 }
                             case LexemeType.ArrayFloat:
                                 {
-                                    Magazine.Push(new MagazineItem(State.S));
-                                    Magazine.Push(new MagazineItem(State.P));
                                     Magazine.Push(new MagazineItem(LexemeType.ArrayFloat));
 
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Assign));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Assign);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.Read:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Read));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Read);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Write:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Write));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Write);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.If:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.K));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.C));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.If));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task3);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task1);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.While:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.C));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.While));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task5);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task1);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task4);
+                                    Generator.Push(GeneratorTask.ArrayFloat);
                                     break;
                                 }
                             default:
-                                {
-                                    msg = $"Generator error; line = {Convert.ToString(current_lexeme.Line)}, pos = {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.I:
-                    {
-                        switch (current_lexeme.lexeme_type)
                         {
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.M));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
+                            msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                            throw new Exception(msg);
                         }
-                        break;
                     }
-                case State.M:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Dot:
-                                {
-                                    Magazine.Push(new MagazineItem(State.M));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-                                    Magazine.Push(new MagazineItem(LexemeType.Dot));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Semicolon:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    break;
-                                }
-                        }
-                        break;
-                    }
-                case State.P:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.N));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.N:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Dot:
-                                {
-                                    Magazine.Push(new MagazineItem(State.N));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-                                    Magazine.Push(new MagazineItem(LexemeType.Dot));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Semicolon:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    break;
-                                }
-                        }
-                        break;
-                    }
-                case State.Q:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Assign));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Assign);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.Read:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Read));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Read);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Write:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Write));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Write);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.If:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.K));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.C));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.If));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task3);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task1);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.While:
-                            {
-                                Magazine.Push(new MagazineItem(State.Q));
-                                Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                Magazine.Push(new MagazineItem(State.Q));
-                                Magazine.Push(new MagazineItem(State.A));
-                                Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                Magazine.Push(new MagazineItem(State.C));
-                                Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                Magazine.Push(new MagazineItem(LexemeType.While));
-
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Task5);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Task1);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Task4);
-                                break;
-                            }
-                            default:
-                            {
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                case State.A:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Assign));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Assign);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.Read:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Read));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Read);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Write:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.Semicolon));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.Write));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Write);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.If:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.K));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.C));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.If));
-
-                                    Generator.Push(GeneratorTask.Task3);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task1);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.While:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.C));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-                                    Magazine.Push(new MagazineItem(LexemeType.While));
-
-                                    Generator.Push(GeneratorTask.Task5);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task1);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task4);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.H:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.LeftSquareBracket:
-                            {
-                                Magazine.Push(new MagazineItem(LexemeType.RightSquareBracket));
-                                Magazine.Push(new MagazineItem(State.E));
-                                Magazine.Push(new MagazineItem(LexemeType.LeftSquareBracket));
-
-                                Generator.Push(GeneratorTask.Index);
-                                Generator.Push(GeneratorTask.Empty);
-                                Generator.Push(GeneratorTask.Empty);
-                                break;
-                            }
-                            default:
-                            {
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                case State.C:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.LeftRoundBracket:
-                                {
-                                    Magazine.Push(new MagazineItem(State.L));
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.L));
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.IntNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.L));
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.IntNumber);
-                                    break;
-                                }
-                            case LexemeType.FloatNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.L));
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.FloatNumber);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.L:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Less:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Less));
-
-                                    Generator.Push(GeneratorTask.Less);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.More:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.More));
-
-                                    Generator.Push(GeneratorTask.More);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Equal:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.Equal));
-
-                                    Generator.Push(GeneratorTask.Equal);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.LessOrEqual:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LessOrEqual));
-
-                                    Generator.Push(GeneratorTask.LessOrEqual);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.MoreOrEqual:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.MoreOrEqual));
-
-                                    Generator.Push(GeneratorTask.MoreOrEqual);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.NotEqual:
-                                {
-                                    Magazine.Push(new MagazineItem(State.Z));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.NotEqual));
-
-                                    Generator.Push(GeneratorTask.NotEqual);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.K:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Else:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.RightBrace));
-                                    Magazine.Push(new MagazineItem(State.Q));
-                                    Magazine.Push(new MagazineItem(State.A));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftBrace));
-                                    Magazine.Push(new MagazineItem(LexemeType.Else));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Task2);
-                                    break;
-                                }
-                            default:
-                                {
-                                    break;
-                                }
-                        }
-                        break;
-                    }
-                case State.E:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.LeftRoundBracket:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.IntNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.IntNumber);
-                                    break;
-                                }
-                            case LexemeType.FloatNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.FloatNumber);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.U:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Plus:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.T));
-                                    Magazine.Push(new MagazineItem(LexemeType.Plus));
-
-                                    Generator.Push(GeneratorTask.Plus);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Minus:
-                                {
-                                    Magazine.Push(new MagazineItem(State.U));
-                                    Magazine.Push(new MagazineItem(State.T));
-                                    Magazine.Push(new MagazineItem(LexemeType.Minus));
-
-                                    Generator.Push(GeneratorTask.Minus);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                                {
-                                    break;
-                                }
-                        }
-                        break;
-                    }
-                case State.T:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.LeftRoundBracket:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.IntNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.IntNumber);
-                                    break;
-                                }
-                            case LexemeType.FloatNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.FloatNumber);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
-                case State.V:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.Multiply:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(State.F));
-                                    Magazine.Push(new MagazineItem(LexemeType.Multiply));
-
-                                    Generator.Push(GeneratorTask.Multiply);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Divide:
-                                {
-                                    Magazine.Push(new MagazineItem(State.V));
-                                    Magazine.Push(new MagazineItem(State.F));
-                                    Magazine.Push(new MagazineItem(LexemeType.Divide));
-
-                                    Generator.Push(GeneratorTask.Divide);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            default:
-                            {
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                case State.F:
-                    {
-                        switch (current_lexeme.lexeme_type)
-                        {
-                            case LexemeType.LeftRoundBracket:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.RightRoundBracket));
-                                    Magazine.Push(new MagazineItem(State.E));
-                                    Magazine.Push(new MagazineItem(LexemeType.LeftRoundBracket));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.Empty);
-                                    break;
-                                }
-                            case LexemeType.Id:
-                                {
-                                    Magazine.Push(new MagazineItem(State.H));
-                                    Magazine.Push(new MagazineItem(LexemeType.Id));
-
-                                    Generator.Push(GeneratorTask.Empty);
-                                    Generator.Push(GeneratorTask.VariableId);
-                                    break;
-                                }
-                            case LexemeType.IntNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.IntNumber));
-
-                                    Generator.Push(GeneratorTask.IntNumber);
-                                    break;
-                                }
-                            case LexemeType.FloatNumber:
-                                {
-                                    Magazine.Push(new MagazineItem(LexemeType.FloatNumber));
-
-                                    Generator.Push(GeneratorTask.FloatNumber);
-                                    break;
-                                }
-                            default:
-                                {
-                                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                                    throw new Exception(msg);
-                                }
-                        }
-                        break;
-                    }
+                    break;
+                }
                 case State.Z:
                 {
                     break;
@@ -1219,14 +1302,26 @@ namespace Translator
                     break;
                 case GeneratorTask.IntNumber:
                 {
-                    int num = Convert.ToInt32(current_lexeme.N);
+                    int num = current_lexeme.N;
                     data.ops.Add(new OpsItem(num, current_lexeme));
                     break;
                 }
                 case GeneratorTask.FloatNumber:
                 {
-                    double num = Convert.ToDouble(current_lexeme.F);
+                    double num = current_lexeme.F;
                     data.ops.Add(new OpsItem(num, current_lexeme));
+                    break;
+                }
+                case GeneratorTask.ArrayInt:
+                {
+                    int num = current_lexeme.N;
+                    data.ops.Add(new OpsItem(num, current_lexeme.Value, true));
+                    break;
+                }
+                case GeneratorTask.ArrayFloat:
+                {
+                    double num = current_lexeme.F;
+                    data.ops.Add(new OpsItem(num, current_lexeme.Value, true));
                     break;
                 }
                 case GeneratorTask.Read:
@@ -1273,46 +1368,51 @@ namespace Translator
                     break;
                 case GeneratorTask.Task1:
                 {
-                    Marks.Push(data.ops.Count);
-                    data.ops.Add(new OpsItem("m1"));
+                    Marks.Push(new MarkerName("m1"));
+                    MarkerName newMark = Marks.Peek();
+                    data.ops.Add(new OpsItem(newMark, current_lexeme.Line));
                     data.ops.Add(new OpsItem(OpsItemOperation.JumpIfFalse, current_lexeme));
                     break;
                 }
                 case GeneratorTask.Task2:
                 {
-                    int place = Marks.Peek(); Marks.Pop();
-                    Marks.Push(data.ops.Count);
-                    data.ops.Add(new OpsItem(0, current_lexeme));
+                    MarkerName place = Marks.Peek(); 
+                    Marks.Pop();
+                    Marks.Push(new MarkerName("m2"));
+                    MarkerName newMark = Marks.Peek();
+                    data.ops.Add(new OpsItem(newMark, current_lexeme.Line));
                     data.ops.Add(new OpsItem(OpsItemOperation.Jump, current_lexeme));
-                    data.ops[place].int_num = data.ops.Count;
+                    data.ops.Where(p => p.metka == place).First().pos = data.ops.Count;
                     break;
                 }
                 case GeneratorTask.Task3:
                 {
-                    int place = Marks.Peek(); Marks.Pop();
-                    data.ops[place].int_num = data.ops.Count;
+                    MarkerName place = Marks.Peek();
+                    Marks.Pop();
+                    data.ops.Where(p => p.metka == place).First().pos = data.ops.Count;
                     break;
                 }
                 case GeneratorTask.Task4:
                 {
-                    Marks.Push(data.ops.Count);
+                    Marks.Push(new MarkerName("m3"));
                     break;
                 }
                 case GeneratorTask.Task5:
                 {
-                    int place = Marks.Peek(); 
+                    MarkerName place = Marks.Peek();
                     Marks.Pop();
-                    data.ops.Add(new OpsItem("m0"));
-                    Marks.Pop();
+                    Marks.Push(new MarkerName("m4"));
+                    MarkerName newMark = Marks.Peek();
+                    data.ops.Add(new OpsItem(newMark, current_lexeme.Line, data.ops.Count + 2));
                     data.ops.Add(new OpsItem(OpsItemOperation.Jump, current_lexeme));
-                    data.ops[place].int_num = data.ops.Count;
+                    data.ops.Where(p => p.metka == place).First().pos = data.ops.Count;
                     break;
                 }
                 default:
                 {
-                        msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
-                        throw new Exception(msg);
-                    }
+                    msg = $"Ошибка генератора; Строка: {Convert.ToString(current_lexeme.Line)},позиция: {Convert.ToString(current_lexeme.Position)}";
+                    throw new Exception(msg);
+                }
             }
         }
     }

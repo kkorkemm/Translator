@@ -193,7 +193,9 @@ namespace Translator
                     
                 }
 
-                if (currentIndex >= programText.Length) break;
+                if (currentIndex >= programText.Length)
+                    break;
+                
 
                 currentLexeme = NextLexeme();
                 currentLexeme.Line = currentLine;
@@ -357,7 +359,7 @@ namespace Translator
                 case State.C:
                     switch (charType)
                     {
-                        case CharType.Digit: return (State.D, 22);
+                        case CharType.Digit: return (State.D, 23);
                         default: return (State.O, 19);
                     }
 
@@ -387,12 +389,14 @@ namespace Translator
             {
                 case 0: // Начало идентификатора
                     lexeme.lexeme_type = LexemeType.Id;
+                    lexeme.Value = currentChar.ToString();
                     break;
                 case 1: // Продолжение идентификатора
                     lexeme.Value += currentChar;
                     break;
                 case 2: // Начало числа
                     n = currentChar - '0';
+                    lexeme.N = n;
                     lexeme.lexeme_type = LexemeType.IntNumber;
                     break;
                 case 3: // Продолжение числа
