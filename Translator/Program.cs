@@ -16,7 +16,7 @@ namespace Translator
             string text = "";
             string temp = "";
 
-            Console.Write("Выберите тест (A, B, C): ");
+            Console.Write("Выберите тест (A, B, C, D): ");
             string test = Console.ReadLine();
 
             using (StreamReader fs = new StreamReader($@"test{test}.txt"))

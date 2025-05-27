@@ -29,8 +29,12 @@ namespace Translator
                         var item = global.Where(p => p.var_name == ops[i].var_name).FirstOrDefault();
                         if (item == null)
                         {
-                            global.Add(ops[i]);
-                            magazine.Push(ops[i]);
+                            if (ops[i+1].type != OpsItemType.Operation)
+                            {
+                                global.Add(ops[i]);
+                                magazine.Push(ops[i]);
+                            }
+
                         }
                         else
                         {
@@ -96,6 +100,13 @@ namespace Translator
                             }
                             case OpsItemOperation.Read:
                             {
+                                if (magazine.Count == 0)
+                                {
+                                        string msg = "Ошибка интерпретатора; Неизвестная переменная; строка:"
+                                    + Convert.ToString(ops[i].line) + ", позиция: " + Convert.ToString(ops[i].pos);
+                                        throw new Exception(msg);
+                                }
+
                                 var a = magazine.Pop();
 
                                 var item = global.Where(p => p.var_name == a.var_name).FirstOrDefault();
@@ -107,20 +118,40 @@ namespace Translator
                                 }
 
                                 if (item.type == OpsItemType.ArrayFloat)
-                                    Console.WriteLine($"{item.var_name}[{a.int_num}] = ");
-                                else
-                                    Console.WriteLine("Введите значение " + item.var_name + ": ");
-                                
-                                if (item.type == OpsItemType.IntNumber)
                                 {
-                                    int result = Convert.ToInt32(Console.ReadLine());
-                                    item.int_num = result;
+                                    if (a.int_num == 0)
+                                    {
+                                       double result = 0;
+                                       for (int j = 0; j < item.arrayFloat.Length; j++)
+                                       {
+                                           Console.Write($"{item.var_name}[{j}] = ");
+                                           result = Convert.ToDouble(Console.ReadLine());
+                                           item.arrayFloat[j] = result;
+                                       }         
+                                    }
+                                    else
+                                    {
+                                        Console.Write($"{item.var_name}[{a.int_num}] = ");
+                                        double result = Convert.ToDouble(Console.ReadLine());
+                                        item.arrayFloat[a.int_num] = result;
+                                    }              
                                 }
                                 else
                                 {
-                                    double result = Convert.ToDouble(Console.ReadLine());
-                                    item.float_num = result;
+                                    Console.Write("Введите значение " + item.var_name + ": ");
+
+                                    if (item.type == OpsItemType.IntNumber)
+                                    {
+                                        int result = Convert.ToInt32(Console.ReadLine());
+                                        item.int_num = result;
+                                    }
+                                    else
+                                    {
+                                        double result = Convert.ToDouble(Console.ReadLine());
+                                        item.float_num = result;
+                                    }
                                 }
+                                    
                                 break;
                             }
                             case OpsItemOperation.Write:
@@ -317,6 +348,13 @@ namespace Translator
                                         case OpsItemType.ArrayFloat: y = b.arrayFloat[idx2]; break;
                                         case OpsItemType.IntNumber: y = b.int_num; break;
                                         case OpsItemType.FloatNumber: y = b.float_num; break;
+                                    }
+
+                                    if (y == 0)
+                                    {
+                                        string msg = "Ошибка интерпретатора; Деление на ноль; строка:"
+                                        + Convert.ToString(ops[i].line) + ", позиция: " + Convert.ToString(ops[i].pos);
+                                        throw new Exception(msg);
                                     }
 
                                     double result = x / y;
