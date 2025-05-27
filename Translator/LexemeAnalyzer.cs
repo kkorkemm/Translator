@@ -282,25 +282,29 @@ namespace Translator
             }
 
             // После выхода из цикла проверяем конечное состояние
-             switch (currentState)
+             try
             {
-                case State.A:
-                    result.lexeme_type = GetKeywordType(value.ToString());
-                    result.Value = value.ToString();
-                    break;
-                case State.B:
-                    result.lexeme_type = LexemeType.IntNumber;
-                    result.N = int.Parse(value.ToString());
-                    break;
-                case State.D:
-                    result.lexeme_type = LexemeType.FloatNumber;
-                    result.F = double.Parse(value.ToString());
-                    break;
-                case State.O:
-                    result.lexeme_type = LexemeType.Error;
-                    result.Value = "Нераспознанная лексема: " + value.ToString();
-                    break;
+                switch (currentState)
+                {
+                    case State.A:
+                        result.lexeme_type = GetKeywordType(value.ToString());
+                        result.Value = value.ToString();
+                        break;
+                    case State.B:
+                        result.lexeme_type = LexemeType.IntNumber;
+                        result.N = Convert.ToInt32(value.ToString());
+                        break;
+                    case State.D:
+                        result.lexeme_type = LexemeType.FloatNumber;
+                        result.F = Convert.ToDouble(value.ToString());
+                        break;
+                    case State.O:
+                        result.lexeme_type = LexemeType.Error;
+                        result.Value = "Нераспознанная лексема: " + value.ToString();
+                        break;
+                }
             }
+            catch { }
 
             return result;
         }

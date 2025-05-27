@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="LexemeAnalyzer.cs" />
     <Compile Include="OpsGenerator.cs" />
+    <Compile Include="OpsInterpretator.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

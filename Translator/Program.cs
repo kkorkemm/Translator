@@ -15,7 +15,11 @@ namespace Translator
         {
             string text = "";
             string temp = "";
-            using (StreamReader fs = new StreamReader(@"testA.txt"))
+
+            Console.Write("Выберите тест (A, B, C): ");
+            string test = Console.ReadLine();
+
+            using (StreamReader fs = new StreamReader($@"test{test}.txt"))
             {
                 while (temp != null)
                 {
@@ -63,7 +67,10 @@ namespace Translator
                 i++;
             }
             Console.WriteLine("\n");
-            
+
+            OpsInterpretator opsInterpreter = new OpsInterpretator(opsGenerator.get_data());
+            opsInterpreter.Run();
+
             Console.ReadKey();        
         }
     }
