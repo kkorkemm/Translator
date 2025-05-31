@@ -29,7 +29,7 @@ namespace Translator
                         var item = global.Where(p => p.var_name == ops[i].var_name).FirstOrDefault();
                         if (item == null)
                         {
-                            if (ops[i+1].type != OpsItemType.Operation)
+                            if (ops[i+1].type != OpsItemType.Operation) // read(z) - z !=
                             {
                                 global.Add(ops[i]);
                                 magazine.Push(ops[i]);
@@ -59,7 +59,9 @@ namespace Translator
                                 var a = magazine.Pop();
 
                                 var item = global.Where(p => p.var_name == a.var_name).FirstOrDefault();
+                                var item2 = global.Where(p => p.var_name == b.var_name).FirstOrDefault();
 
+                               
                                 if (item != null)
                                 {
                                     if (item.type == OpsItemType.ArrayFloat)
@@ -87,7 +89,21 @@ namespace Translator
                                         item.type = OpsItemType.FloatNumber;
                                     }
 
-                                    magazine.Push(item);
+                                            if (item2 != null)
+                                            {
+                                                if (item.type == OpsItemType.FloatNumber)
+                                                {
+                                                    item.float_num = item2.arrayFloat[b.int_num];
+                                                }
+                                            }
+
+                                            if (item.type == OpsItemType.ArrayFloat && item2.type == OpsItemType.ArrayFloat)
+                                            {
+                                                item.arrayFloat[a.int_num] = item2.arrayFloat[b.int_num];
+                                            }
+
+
+                                            magazine.Push(item);
                                 }
                                 else
                                 {
@@ -125,8 +141,14 @@ namespace Translator
                                        for (int j = 0; j < item.arrayFloat.Length; j++)
                                        {
                                            Console.Write($"{item.var_name}[{j}] = ");
-                                           result = Convert.ToDouble(Console.ReadLine());
-                                           item.arrayFloat[j] = result;
+                                            try
+                                            {
+                                                    result = Convert.T
+                                                            oDouble(Console.ReadLine());
+                                                    item.arrayFloat[j] = result;
+
+                                            }
+                                            catch { }
                                        }         
                                     }
                                     else
@@ -606,9 +628,9 @@ namespace Translator
                             case OpsItemOperation.JumpIfFalse:
                             {
                                 var metka = magazine.Pop();
-                                var a = magazine.Pop();
+                                var a = magazine.Pop(); // результат сравнения
 
-                                if (a.int_num == 0)
+                                if (a.int_num == 0) // результат - ложь
                                 {
                                     i = metka.pos - 1;
                                 }
@@ -637,7 +659,10 @@ namespace Translator
                                 }
                                 else
                                 {
-                                    magazine.Push(new OpsItem(0, idx.int_num, item.var_name, true));
+                                    if (idx.float_num != 0)
+                                        magazine.Push(new OpsItem(0, Convert.ToInt32(idx.float_num), item.var_name, true));
+                                    else
+                                        magazine.Push(new OpsItem(0, idx.int_num, item.var_name, true));
                                 }
 
                                 break;

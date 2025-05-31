@@ -1316,7 +1316,7 @@ namespace Translator
                     Marks.Pop();
                     Marks.Push(new MarkerName("m5"));
                     MarkerName newMark = Marks.Peek();
-                    data.ops.Add(new OpsItem(newMark, current_lexeme.Line, j));
+                    data.ops.Add(new OpsItem(newMark, current_lexeme.Line, j)); //////
                     data.ops.Add(new OpsItem(OpsItemOperation.Jump, current_lexeme));
                     data.ops.Where(p => p.metka == place).First().pos = data.ops.Count;
                     break;
